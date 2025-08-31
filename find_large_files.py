@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+"""find_large_files - A simple CPython Script to find files larger than provided threshold"""
+
 import argparse
 import csv
 import os
@@ -23,7 +25,9 @@ BYTES_CONVERSION_LOOKUP: Final[dict[Unit, int]] = {
 
 
 class PathDoesNotExistError(FileNotFoundError):
-    def __init__(self, path=None, *args, **kwargs):
+    """Custom Exception Defined to handle path not existing errors"""
+
+    def __init__(self, *args, path=None, **kwargs):
         msg = "Provided path does not exist"
         if path is not None:
             msg += ": " + path
@@ -31,6 +35,11 @@ class PathDoesNotExistError(FileNotFoundError):
 
 
 class CheckPathExistsAction(argparse.Action):
+    """Custom argsparse Action to validate path variables.
+
+    It will basically check if the path exists or not.
+    """
+
     def __call__(self, parser, namespace, values, option_string=None):
         path_to_check = values
         if not os.path.exists(path_to_check):
@@ -39,9 +48,18 @@ class CheckPathExistsAction(argparse.Action):
 
 
 def get_arguments():
+    """Main CLI Argument Handler Function.
+
+    Here, we use the argparse module to conviniently
+    accept values from the user through the CLI.
+    Additionally, each value accepted is being validated
+    using the argparse module.
+    """
+
     parser = argparse.ArgumentParser(
         prog="find_large_files",
-        description="A simple program to find large files under a provided path using the specified threshold",
+        description="A simple program to find large files under a "
+        "provided path using the specified threshold",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
@@ -58,7 +76,8 @@ def get_arguments():
         type=str,
         choices=["KB", "KiB", "MB", "GB", "MiB", "GiB", "TB", "TiB"],
         default="MB",
-        help="Specify the size unit. Unit specified will be used with size to find the larger files.",
+        help="Specify the size unit. Unit specified will be used "
+        "with size to find the larger files.",
     )
     parser.add_argument(
         "-o",
@@ -66,7 +85,8 @@ def get_arguments():
         type=str,
         choices=["console", "file"],
         default="console",
-        help="Specify the output type. Output can be shown to the console, or it can written to a file.",
+        help="Specify the output type. Output can be shown to the console, "
+        "or it can written to a file.",
     )
     parser.add_argument(
         "-ft",
@@ -77,10 +97,10 @@ def get_arguments():
         help=textwrap.dedent(
             """\
         Specify the file type to store the output in. Possible outputs are as follows:-
-            - Non-Verbose Txt Output: Shows only the paths that are found to be larger than the threshold.
-            - Verbose Txt Output: Prints the Console Table Output.
-            - Non-Verbose CSV Output: Stores the paths under a column named paths.
-            - Verbose CSV Output: Stores the paths similar to the the verbose table output, only in CSV Format
+        - Non-Verbose Txt Output: Shows only paths that are found to be larger than the threshold.
+        - Verbose Txt Output: Prints the Console Table Output.
+        - Non-Verbose CSV Output: Stores the paths under a column named paths.
+        - Verbose CSV Output: Stores paths similar to the verbose table output, only in CSV Format
         """
         ),
     )
@@ -111,7 +131,8 @@ def get_arguments():
         "-v",
         "--verbose",
         action="store_true",
-        help="Specify the verbosity of the output. No verbosity will only show the table names as a list.",
+        help="Specify the verbosity of the output. "
+        "No verbosity will only show the table names as a list.",
     )
     parser.add_argument(
         "path",
@@ -144,6 +165,12 @@ def get_human_readable_size(size: float, unit: Unit = "MB", round_to: int = 2) -
 
 
 class LargeFilesOutputHandler:
+    """Main Handler for Outputing the large files.
+
+    This has been set so that adding more output types
+    can be a little bit easier.
+    """
+
     def __init__(
         self,
         large_files: list[str | dict[str, str]],
@@ -151,7 +178,7 @@ class LargeFilesOutputHandler:
         output_to: Literal["console", "file"] = "console",
         file_type: Literal["txt", "csv"] = "txt",
         file_store: str = os.path.dirname(__file__),
-        file_name: str | None = None,
+        file_name: str = "large_files",
     ):
         self.large_files = large_files
         self.output_to = output_to
@@ -169,7 +196,8 @@ class LargeFilesOutputHandler:
                 self.file_store = new_file_store
             if self.file_store.split(".")[0] != file_name:
                 warnings.warn(
-                    f"Output is being stored at {self.file_store.split('.')[0]} instead of {file_name}"
+                    f"Output is being stored at {self.file_store.split('.')[0]} "
+                    + "instead of {file_name}"
                 )
         elif os.path.isdir(self.file_store):
             new_file_store = os.path.join(self.file_store, self.file_name)
@@ -180,10 +208,17 @@ class LargeFilesOutputHandler:
         self.file = None
         if self.output_to == "file":
             print(f"Writing to file {self.file_store}.....")
-            self.file = open(self.file_store, "w", newline=None if self.file_type == "txt" else "")
+            self.file = open(
+                self.file_store,
+                "w",
+                newline=None if self.file_type == "txt" else "",
+                encoding="utf-8",
+            )
             if self.file_type == "csv":
                 self.csv_writer = csv.writer(self.file)
 
+        self.headers = None
+        self.print_table_config: dict[str, Any] = {}
         if not verbose:
             self.print_without_verbose()
         else:
@@ -211,6 +246,8 @@ class LargeFilesOutputHandler:
                 self.csv_writer.writerow(*args)
 
     def print_without_verbose(self):
+        """Prints the large files line by line without any additional info"""
+
         if self.file_type == "txt":
             self.print("\nFiles and Directories found")
             self.print("----------------------------")
@@ -221,6 +258,8 @@ class LargeFilesOutputHandler:
                 self.print(large_file)
 
     def print_verbose(self):
+        """Responsible for printing the verbose output."""
+
         if self.file_type == "txt":
             self.print_table()
         elif self.file_type == "csv":
@@ -238,16 +277,18 @@ class LargeFilesOutputHandler:
         be able to place the header nicely in the center.
         """
 
-        leading_blanks = lambda header: " " * (
-            ((self.print_table_config[header] + 2) // 2) - (len(header) // 2)
-        )
-        trailing_blanks = lambda header: " " * (
-            (
-                ((self.print_table_config[header] + 2) // 2)
-                + (self.print_table_config[header] % 2 + 1)
+        def leading_blanks(header):
+            return " " * (((self.print_table_config[header] + 2) // 2) - (len(header) // 2))
+
+        def trailing_blanks(header):
+            return " " * (
+                (
+                    ((self.print_table_config[header] + 2) // 2)
+                    + (self.print_table_config[header] % 2 + 1)
+                )
+                - len(header[len(header) // 2 - 1 :])
             )
-            - len(header[len(header) // 2 - 1 :])
-        )
+
         return (
             "".join(
                 [
@@ -259,6 +300,12 @@ class LargeFilesOutputHandler:
         )
 
     def get_headers(self, inconsistent_headers=False):
+        """Get the defined headers in the provided verbose large files object.
+
+        Here, inconsistent headers just means that there may be some headers
+        in the large files objects that are not available in all of these objects.
+        """
+
         if not inconsistent_headers:
             headers = [key for key, _ in self.large_files[0].items()]
         else:
@@ -272,11 +319,24 @@ class LargeFilesOutputHandler:
         return headers
 
     def print_table(self, inconsistent_headers=False):
+        """Prints a table using the provided large file object.
+
+        Basically prints it in this format:
+        ```
+        +------+------+
+        | Col1 | Col2 |
+        +------+------+
+        | Data | Data |
+        +------+------+
+        ```
+        """
+
         headers = self.get_headers(inconsistent_headers=inconsistent_headers)
 
-        self.print_table_config = {}
         for header in headers:
-            max_data_length = len(str(max(self.large_files, key=lambda x: str(x[header]))[header]))
+            max_data_length = len(
+                str(max(self.large_files, key=lambda x: len(str(x[header])))[header])
+            )
             self.print_table_config[header] = max_data_length
 
         # Printing the first line
@@ -296,8 +356,11 @@ class LargeFilesOutputHandler:
         # Printing the data itself
         for large_file in self.large_files:
             for header in headers:
-                # TODO: Considering pushing data to the middle
-                self.print("| " + large_file[header], end=" ")
+                self.print(
+                    "| " + large_file[header],
+                    end=" "
+                    * ((self.print_table_config[header] + 2) - (len(large_file[header]) + 2) + 1),
+                )
             self.print(end="|\n")
 
         # And finally, the ending line
@@ -305,13 +368,15 @@ class LargeFilesOutputHandler:
 
 
 def main(args: argparse.ArgumentParser):
-    path: str = args.path
-    size: float = args.size
-    unit: Unit = args.unit
-    threshold = get_threshold_in_bytes(size, unit)
+    """Main Program Runner"""
+
+    # path: str = args.path
+    # size: float = args.size
+    # unit: Unit = args.unit
+    threshold = get_threshold_in_bytes(args.size, args.unit)
 
     large_list: list[str | dict[str, str]] = []
-    for dirpath, dirnames, filenames in os.walk(path):
+    for dirpath, dirnames, filenames in os.walk(args.path):
         # Checking size of directories first
         for dirname in dirnames:
             dir_path = os.path.join(dirpath, dirname)
@@ -325,7 +390,7 @@ def main(args: argparse.ArgumentParser):
                     "type": "Directory",
                     "root": dirpath,
                     "path": dir_path,
-                    "size": get_human_readable_size(dir_size, unit, args.round),
+                    "size": get_human_readable_size(dir_size, args.unit, args.round),
                 }
                 large_list.append(dir_verbose_object)
 
@@ -342,11 +407,11 @@ def main(args: argparse.ArgumentParser):
                     "type": "File",
                     "root": dirpath,
                     "path": file_path,
-                    "size": get_human_readable_size(file_size, unit, args.round),
+                    "size": get_human_readable_size(file_size, args.unit, args.round),
                 }
                 large_list.append(file_verbose_object)
 
-    print(f"Total Number of files larger than {size} {unit}: {len(large_list)}")
+    print(f"Total Number of files larger than {args.size} {args.unit}: {len(large_list)}")
     if len(large_list) != 0:
         LargeFilesOutputHandler(
             large_files=large_list,
