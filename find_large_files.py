@@ -151,7 +151,7 @@ class LargeFilesOutputHandler:
         output_to: Literal["console", "file"] = "console",
         file_type: Literal["txt", "csv"] = "txt",
         file_store: str = os.path.dirname(__file__),
-        file_name: str | None = None,
+        file_name: str = "large_files",
     ):
         self.large_files = large_files
         self.output_to = output_to
@@ -238,16 +238,29 @@ class LargeFilesOutputHandler:
         be able to place the header nicely in the center.
         """
 
-        leading_blanks = lambda header: " " * (
-            ((self.print_table_config[header] + 2) // 2) - (len(header) // 2)
-        )
-        trailing_blanks = lambda header: " " * (
-            (
-                ((self.print_table_config[header] + 2) // 2)
-                + (self.print_table_config[header] % 2 + 1)
+        # leading_blanks = lambda header: " " * (
+        # ((self.print_table_config[header] + 2) // 2) - (len(header) // 2)
+        # )
+        # trailing_blanks = lambda header: " " * (
+        # (
+        # ((self.print_table_config[header] + 2) // 2)
+        # + (self.print_table_config[header] % 2 + 1)
+        # )
+        # - len(header[len(header) // 2 - 1 :])
+        # )
+
+        def leading_blanks(header):
+            return " " * (((self.print_table_config[header] + 2) // 2) - (len(header) // 2))
+
+        def trailing_blanks(header):
+            return " " * (
+                (
+                    ((self.print_table_config[header] + 2) // 2)
+                    + (self.print_table_config[header] % 2 + 1)
+                )
+                - len(header[len(header) // 2 - 1 :])
             )
-            - len(header[len(header) // 2 - 1 :])
-        )
+
         return (
             "".join(
                 [
@@ -276,7 +289,9 @@ class LargeFilesOutputHandler:
 
         self.print_table_config = {}
         for header in headers:
-            max_data_length = len(str(max(self.large_files, key=lambda x: str(x[header]))[header]))
+            max_data_length = len(
+                str(max(self.large_files, key=lambda x: len(str(x[header])))[header])
+            )
             self.print_table_config[header] = max_data_length
 
         # Printing the first line
@@ -296,8 +311,11 @@ class LargeFilesOutputHandler:
         # Printing the data itself
         for large_file in self.large_files:
             for header in headers:
-                # TODO: Considering pushing data to the middle
-                self.print("| " + large_file[header], end=" ")
+                self.print(
+                    "| " + large_file[header],
+                    end=" "
+                    * ((self.print_table_config[header] + 2) - (len(large_file[header]) + 2) + 1),
+                )
             self.print(end="|\n")
 
         # And finally, the ending line
